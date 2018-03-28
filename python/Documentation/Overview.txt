@@ -1,0 +1,14 @@
+This image represents the basic points and vectors described in the algorithms.
+
+Legend:
+
+Yellow dot - Satellite
+Black dots - Center Point (CP) and Given Point (GP)
+Green line - EarthToCenter vector
+Red line - EarthToPoint vector
+Blue line - Viewing Plane (VP)
+
+From the satellite, there are two lines tangent to the Earth. The area inside these lines is the 
+portion of the Earth that is visible to the satellite. Between the two tangent lines is the VP,
+which is also perpendicular to EarthToCenter. Also depicted in this image are the CenterToCam and
+PointToCam vectors, which are referenced in the code for the polarDistance function.

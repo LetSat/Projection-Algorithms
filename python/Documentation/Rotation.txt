@@ -1,0 +1,17 @@
+This image represents the first rotation done in the pointCoordinates algorithm.
+
+Legend:
+
+Center black dot: Center of the Earth (CE); (0,0,0) in our coordinate system
+
+Outside black dot: Representation of Given Point (GP) on the Earth's surface relative to the
+Center Point (CP) on the Earth's surface. Before rotation, it will not have a Z component, and its
+magnitude is determined by the magnitude of the polar vector.
+
+Yellow line: Direction of rotation about the X axis (out of the screen)
+
+
+This first rotation will result in us knowing the direction of GP from CE. For this rotation, we
+assume the center of the image is at point Latitude: 0 Longitude: 0. After this rotation, we
+rotate about the Y and Z axes by the latitude and longitude of the given CP so that we are left
+with a vector from CE to the actual GP.

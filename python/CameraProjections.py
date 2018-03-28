@@ -1,15 +1,12 @@
 ########### CameraProjections.py ###########
 #
-# Release 0.2
+# Release 0.3
 #
 # Added:
-#       * Error Handling
-#       * Modify function signatures to
-#         reduce repetitive calculations
-# TODO: * Documentation
-#       * Add camera parameter and cartesian
-#         helper functions (Chandler)
-#       * Verify range of output
+#       * Rename functions and variables for
+#         readability
+#       * Add camera parameter 
+#         helper functions
 # 
 ############################################
 
@@ -21,13 +18,37 @@ from math import *
 # Earth's radius in km
 EARTH_RADIUS = 6371.0
 
+########### Helper Functions ###########
+def equirectangularToLatLong(x, y, width, height):
+    lat  = -( y * 180. / height ) + 90
+    long =  ( x * 360. / width  ) - 180
+    return (lat, long)
+    
+def latLongToEquirectangular(lat, long, width, height):
+    y = ( 90  - lat  ) * height / 180.
+    x = ( 180 + long ) * width  / 360.
+    return (x, y)
 
+# Returns the "working range" (visible longitude range) of the earth
+#   from the given altitude in radians
+def workingRange(alt):
+    return acos(EARTH_RADIUS / (EARTH_RADIUS + alt)) * 2
+
+# Return FOV (radians) needed at targetAltitude needed to achieve the same
+#   working range as that at actualAltitude
+def unityFOVForAltitude(targetAltitude, actualAltitude):
+    return 2.*(
+        viewAngle(actualAltitude) -
+        atan2(
+            (targetAltitude-actualAltitude)*EARTH_RADIUS, 
+            (EARTH_RADIUS+targetAltitude)*sqrt(actualAltitude*(2*EARTH_RADIUS + actualAltitude))
+            )
+        )
+    
 ########### polarDistance ###########
 # Discover the distance between the center of the earth in an image and an arbitrary point on the
 # earth using polar coordinates
 
-# 11-20-17
-# Brian Howell
 
 # Brief: Find the distance between the center of the earth in the image and the given point using
 #        polar coordinates
@@ -41,9 +62,9 @@ EARTH_RADIUS = 6371.0
 #                [3] - Vector from center of Earth to LAT 90 projected onto "viewing plane"
 #                [4] - Lat/Long coordinates of the northern edge of the view
 #
-# return: magnitude - magnitude of vector from center of earth to point in the image scaled
+# return: polarMagnitude - magnitude of vector from center of earth to point in the image scaled
 #                     from 0 to 1, where 0 is center and 1 is edge of earth
-#         angle - angle of polar vector from center of earth to point in the image scaled from
+#         polarAngle - angle of polar vector from center of earth to point in the image scaled from
 #                 -180 to 180
 def polarDistance (plat, plong, positionData):
     #print ""
@@ -60,8 +81,7 @@ def polarDistance (plat, plong, positionData):
     centerToPoint = diffVectors(earthToPoint, earthToCenter)
     #print "centerToPoint", centerToPoint
     
-    # Find vector from center of image to camera FIXED
-    #centerToCam = centerCamVector(alt + EARTH_RADIUS, earthToCenter)
+    # Find vector from center of image to camera
     centerToCam = positionData[1]
     #print "centerToCam", centerToCam
     
@@ -82,7 +102,7 @@ def polarDistance (plat, plong, positionData):
         return [float('nan'), float('nan')]
     
     # Find angle between centerToCam and pointToCam
-    pointAngle = abs(vectorAngleSimple(centerToCam, pointToCam))
+    pointCamAngle = abs(vectorAngle(centerToCam, pointToCam))
     #print "pointAngle", pointAngle
     
     # Find angle between camera and edge point of viewing
@@ -91,7 +111,7 @@ def polarDistance (plat, plong, positionData):
     
     # Find magnitude of final polar coordinate based on angles
     # See https://en.wikipedia.org/wiki/3D_projection#Perspective_projection
-    magnitude = tan(pointAngle) / tan(view)
+    polarMagnitude = tan(pointCamAngle) / tan(view)
     
     #Project centerToPoint and earthToTop to the viewing plane
     projCenterToPoint = projectVectorToPlane(earthToCenter, earthToPoint)
@@ -100,14 +120,10 @@ def polarDistance (plat, plong, positionData):
     #print "projEarthToTop", projEarthToTop
     
     #Find the angle between the projected vectors
-    pointAngle = getPointAngle(projEarthToTop,projCenterToPoint, earthToCenter)
+    polarAngle = pointAngle(projEarthToTop,projCenterToPoint, earthToCenter)
     #print "pointAngle", pointAngle
     
-    #Reference this angle from 90 for final polar angle
-    #angle = radians(90) - pointAngle
-    angle = degrees(pointAngle)
-    
-    return [magnitude, angle]
+    return [polarMagnitude, degrees(polarAngle)]
 
 
 # Brief: Does calculations for a given altitude, center latitude, and center longitude. Useful to avoid
@@ -133,13 +149,13 @@ def prePolarDistance(alt, clat, clong):
     earthToTop = [0,0,1]
     projEarthToTop = projectVectorToPlane(earthToCenter, earthToTop)
     
-    preLL = preLatLong(alt, clat, clong)
-    northBoundary = latLong(0.999999999999, 90, preLL)
+    prePC = prePointCoordinates(alt, clat, clong)
+    northBoundary = pointCoordinates(0.999999999999, 90, prePC)
     
     return [earthToCenter, centerToCam, view, projEarthToTop, northBoundary]
     
 
-########### latLong ###########
+########### pointCoordinates ###########
 # Discover the Latitude and Longitude of a point given the polar vector from the center of a satellite
 # image to an arbitrary point on the image.
 
@@ -153,7 +169,7 @@ def prePolarDistance(alt, clat, clong):
 #
 # return: plat - latitude of the given point
 #         plong - Longitude of the given point
-def latLong(pmag, pang, positionData):
+def pointCoordinates(pmag, pang, positionData):
     
     # When given invalid parameters, will return error code NaN
     if pmag < 0 or pmag >= 1:
@@ -193,7 +209,7 @@ def latLong(pmag, pang, positionData):
     return vectorToLatLong(finalPoint)
     
     
-def preLatLong(alt, clat, clong):
+def prePointCoordinates(alt, clat, clong):
         
     view = viewAngle(alt)
         
@@ -217,11 +233,10 @@ def diffVectors(vectorA, vectorB):
     
     return [x, y, z]
 
-#TODO: Change point parameter name
-def projectVectorToPlane(centerNorm, point): #! Project point onto plane described by centerNorm
+def projectVectorToPlane(centerNorm, vector): # Project vector onto plane described by centerNorm
     
     mag = vectorMagnitude(centerNorm)
-    cross = crossProduct(point, centerNorm)
+    cross = crossProduct(vector, centerNorm)
     cross = [cross[0]/mag,cross[1]/mag,cross[2]/mag]
     cross = crossProduct(centerNorm, cross)
     cross = [cross[0]/mag,cross[1]/mag,cross[2]/mag]
@@ -251,14 +266,14 @@ def centerCamVector(alt, earthToCenter):
     
     return centerToCam
 
-def vectorAngleSimple(vectorA, vectorB):
+def vectorAngle(vectorA, vectorB):
     cross = crossProduct(vectorA, vectorB)
     crossMag = vectorMagnitude(cross)
     dot = dotProduct(vectorA, vectorB)
     angle = atan2(crossMag, dot)
     return angle
     
-def getPointAngle(vectorA, vectorB, planeNorm):
+def pointAngle(vectorA, vectorB, planeNorm):
     cross = crossProduct(vectorA, vectorB)
     crossMag = vectorMagnitude(cross)
     
@@ -288,11 +303,11 @@ def getPointAngle(vectorA, vectorB, planeNorm):
         
     return angle
     
-def crossProduct(a, b):
+def crossProduct(vectorA, vectorB):
 
-    return [a[1]*b[2] - a[2]*b[1],
-            a[2]*b[0] - a[0]*b[2],
-            a[0]*b[1] - a[1]*b[0]]
+    return [vectorA[1]*vectorB[2] - vectorA[2]*vectorB[1],
+            vectorA[2]*vectorB[0] - vectorA[0]*vectorB[2],
+            vectorA[0]*vectorB[1] - vectorA[1]*vectorB[0]]
     
 def dotProduct(vectorA, vectorB):
 
@@ -302,11 +317,11 @@ def dotProduct(vectorA, vectorB):
     
     return x + y + z
     
-def unitVector(a):
+def unitVector(vector):
 
-    mag = vectorMagnitude(a)
+    mag = vectorMagnitude(vector)
     
-    return [a[0]/mag, a[1]/mag, a[2]/mag]
+    return [vector[0]/mag, vector[1]/mag, vector[2]/mag]
     
 def vectorMagnitude(vector):
     

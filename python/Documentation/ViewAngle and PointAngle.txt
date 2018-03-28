@@ -1,0 +1,12 @@
+This image represents viewAngle and pointAngle. It is a focused view of the image in Overview.png.
+
+Legend:
+
+Yellow dot: Satellite
+Red angle: viewAngle
+Blue angle: pointAngle
+Black dots: Center Point (CP) and Given Point (GP)
+
+This image shows what viewAngle and pointAngle. These two angles are used to find the magnitude of 
+the final polar vector in polarDistance. In pointCoordinates, these angles are found from the 
+altitude of the satellite and the magnitude of the polar vector.
